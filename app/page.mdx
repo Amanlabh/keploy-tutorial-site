@@ -89,7 +89,7 @@ tar -xzf keploy.tar.gz && sudo mv keploy /usr/local/bin/ && sudo chmod +x /usr/l
 Swap `arm64` → `amd64` on Intel.
 </Callout>
 
-Note too that the sample's own `readme.md` still tells you to install from `raw.githubusercontent.com/keploy/keploy/main/keploy.sh`. That path is stale — use `https://keploy.io/install.sh` from the main docs.
+The sample's own `readme.md` points at a different URL — `raw.githubusercontent.com/keploy/keploy/main/keploy.sh`. I assumed that one was stale; it isn't. Both URLs serve a byte-identical 506-line script, so either works, and both hit the TTY problem above.
 
 Verify:
 
