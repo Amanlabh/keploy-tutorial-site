@@ -2,6 +2,7 @@ import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
 
 import { Callout } from "@/components/callout";
+import { Hero } from "@/components/hero";
 import { Stats } from "@/components/stats";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -25,7 +26,7 @@ const components: MDXComponents = {
   ),
   h2: (props: El<"h2">) => (
     <h2
-      className="mt-14 mb-4 scroll-mt-24 border-b pb-2 text-2xl font-semibold tracking-tight"
+      className="mt-14 mb-4 scroll-mt-24 border-b-2 border-b-brand/25 pb-2 text-2xl font-semibold tracking-tight"
       {...props}
     />
   ),
@@ -42,18 +43,18 @@ const components: MDXComponents = {
     <p className="my-4 leading-7 text-foreground/90" {...props} />
   ),
   ul: (props: El<"ul">) => (
-    <ul className="my-4 ml-6 list-disc space-y-2 marker:text-muted-foreground" {...props} />
+    <ul className="my-4 ml-6 list-disc space-y-2 marker:text-brand/70" {...props} />
   ),
   ol: (props: El<"ol">) => (
     <ol
-      className="my-4 ml-6 list-decimal space-y-2 marker:text-muted-foreground"
+      className="my-4 ml-6 list-decimal space-y-2 marker:text-brand/70"
       {...props}
     />
   ),
   li: (props: El<"li">) => <li className="leading-7 pl-1.5" {...props} />,
   a: (props: El<"a">) => (
     <a
-      className="font-medium underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:decoration-foreground"
+      className="font-medium text-brand underline decoration-brand/35 underline-offset-4 transition-colors hover:decoration-brand"
       target={props.href?.startsWith("http") ? "_blank" : undefined}
       rel={props.href?.startsWith("http") ? "noreferrer" : undefined}
       {...props}
@@ -64,7 +65,7 @@ const components: MDXComponents = {
   ),
   blockquote: (props: El<"blockquote">) => (
     <blockquote
-      className="my-6 border-l-2 border-border py-1 pl-5 text-muted-foreground italic [&_strong]:text-foreground [&_strong]:not-italic"
+      className="my-6 border-l-2 border-brand/40 py-1 pl-5 text-muted-foreground italic [&_strong]:text-foreground [&_strong]:not-italic"
       {...props}
     />
   ),
@@ -73,7 +74,7 @@ const components: MDXComponents = {
   // Inline code. Fenced blocks arrive already wrapped in <pre> by rehype-pretty-code.
   code: (props: El<"code">) => (
     <code
-      className="rounded-md border bg-muted px-[0.4em] py-[0.2em] font-mono text-[0.85em] break-words"
+      className="rounded-md border border-brand/20 bg-brand/[0.07] px-[0.4em] py-[0.2em] font-mono text-[0.85em] break-words text-foreground"
       {...props}
     />
   ),
@@ -82,7 +83,7 @@ const components: MDXComponents = {
       {"data-language" in props && typeof props["data-language"] === "string" ? (
         <Badge
           variant="secondary"
-          className="absolute top-3 right-3 z-10 font-mono text-[10px] tracking-wide uppercase opacity-70"
+          className="absolute top-3 right-3 z-10 border-brand/25 bg-brand/10 font-mono text-[10px] tracking-wide text-brand uppercase"
         >
           {props["data-language"] as string}
         </Badge>
@@ -106,13 +107,14 @@ const components: MDXComponents = {
   tbody: (props: El<"tbody">) => <TableBody {...props} />,
   tr: (props: El<"tr">) => <TableRow {...props} />,
   th: (props: El<"th">) => (
-    <TableHead className="font-semibold text-foreground" {...props} />
+    <TableHead className="bg-muted/50 font-semibold text-foreground" {...props} />
   ),
   td: (props: El<"td">) => <TableCell className="align-top" {...props} />,
 
   Callout,
   Badge,
   Stats,
+  Hero,
 };
 
 export function useMDXComponents(): MDXComponents {

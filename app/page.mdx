@@ -1,5 +1,7 @@
 # Testing a Go API Without Writing Tests
 
+<Hero />
+
 You have a Go service. It talks to MySQL. You know it needs tests, but writing them means writing mocks, and writing mocks means hand-transcribing every row your database returns into Go structs — then maintaining that transcription forever, as the schema moves under it.
 
 Keploy inverts the deal. It watches your app while you use it and turns that traffic into tests. Not only the HTTP requests — the database conversations too. Replay them later and your app believes it's still talking to MySQL, while MySQL isn't even running.

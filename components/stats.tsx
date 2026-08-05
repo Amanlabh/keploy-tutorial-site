@@ -11,8 +11,11 @@ export function Stats() {
   return (
     <div className="my-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
       {stats.map((s) => (
-        <Card key={s.label} className="gap-1 p-4">
-          <span className="font-mono text-3xl font-semibold tabular-nums">
+        <Card
+          key={s.label}
+          className="gap-1 rounded-lg border-l-2 border-l-brand p-4 transition-colors hover:bg-accent/40"
+        >
+          <span className="font-mono text-3xl leading-none font-semibold tabular-nums text-brand">
             {s.value}
           </span>
           <span className="text-xs leading-snug text-muted-foreground">

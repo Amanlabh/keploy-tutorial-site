@@ -39,6 +39,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-amber: var(--brand-amber);
+  --color-brand-yellow: var(--brand-yellow);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -55,18 +58,22 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  /* Keploy orange, tuned for contrast on a light surface. */
+  --primary: oklch(0.596 0.219 36.5);
+  --primary-foreground: oklch(0.995 0 0);
+  --secondary: oklch(0.97 0.006 60);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.972 0.005 70);
+  --muted-foreground: oklch(0.53 0.012 60);
+  --accent: oklch(0.958 0.021 62);
+  --accent-foreground: oklch(0.42 0.15 38);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.918 0.006 65);
+  --input: oklch(0.918 0.006 65);
+  --ring: oklch(0.596 0.219 36.5);
+  --brand: oklch(0.596 0.219 36.5);
+  --brand-amber: oklch(0.7 0.185 52);
+  --brand-yellow: oklch(0.82 0.16 85);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -84,24 +91,29 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Near-black with a faint warm cast, matching the CLI banner background. */
+  --background: oklch(0.155 0.004 60);
+  --foreground: oklch(0.965 0.003 70);
+  --card: oklch(0.198 0.005 60);
+  --card-foreground: oklch(0.965 0.003 70);
+  --popover: oklch(0.198 0.005 60);
+  --popover-foreground: oklch(0.965 0.003 70);
+  /* Brighter orange so it carries on a dark surface. */
+  --primary: oklch(0.705 0.202 43);
+  --primary-foreground: oklch(0.16 0.01 50);
+  --secondary: oklch(0.268 0.008 60);
+  --secondary-foreground: oklch(0.965 0.003 70);
+  --muted: oklch(0.258 0.007 60);
+  --muted-foreground: oklch(0.712 0.012 65);
+  --accent: oklch(0.288 0.032 50);
+  --accent-foreground: oklch(0.82 0.14 55);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 11%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.705 0.202 43);
+  --brand: oklch(0.705 0.202 43);
+  --brand-amber: oklch(0.78 0.168 58);
+  --brand-yellow: oklch(0.88 0.165 95);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -147,4 +159,17 @@
 
 figure[data-rehype-pretty-code-figure] {
   margin: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--brand) 30%, transparent);
+}
+
+/* Keep the language badge from colliding with the first line of code. */
+figure[data-rehype-pretty-code-figure] pre {
+  padding-top: 1.5rem;
 }

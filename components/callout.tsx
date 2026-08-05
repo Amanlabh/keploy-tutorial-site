@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 const variants = {
   info: {
     icon: Info,
-    wrap: "border-sky-500/30 bg-sky-500/5",
-    accent: "text-sky-600 dark:text-sky-400",
+    wrap: "border-brand/35 bg-brand/[0.06]",
+    accent: "text-brand",
   },
   warn: {
     icon: AlertTriangle,
@@ -40,7 +40,7 @@ export function Callout({
   const { icon: Icon, wrap, accent } = variants[type];
 
   return (
-    <div className={cn("my-6 flex gap-3 rounded-lg border p-4", wrap)}>
+    <div className={cn("my-6 flex gap-3 rounded-lg border border-l-4 p-4", wrap)}>
       <Icon className={cn("mt-0.5 h-5 w-5 shrink-0", accent)} aria-hidden />
       <div className="min-w-0 flex-1 text-sm leading-relaxed [&>:first-child]:mt-0 [&>:last-child]:mb-0">
         {title ? (

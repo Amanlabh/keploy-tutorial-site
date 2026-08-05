@@ -46,7 +46,7 @@ export function Toc() {
               className={cn(
                 "-ml-px block border-l pl-4 leading-snug transition-colors",
                 activeId === h.id
-                  ? "border-foreground font-medium text-foreground"
+                  ? "border-brand font-medium text-brand"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >

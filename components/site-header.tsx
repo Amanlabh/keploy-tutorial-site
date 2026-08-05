@@ -9,10 +9,20 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <span className="font-mono text-sm font-semibold tracking-tight">
-          keploy<span className="text-muted-foreground"> record → test</span>
+        <span
+          aria-hidden
+          className="grid size-6 shrink-0 place-items-center rounded-md bg-brand font-mono text-sm font-bold text-primary-foreground"
+        >
+          K
         </span>
-        <Badge variant="secondary" className="hidden font-normal sm:inline-flex">
+        <span className="font-mono text-sm font-semibold tracking-tight">
+          keploy
+          <span className="text-muted-foreground"> record → test</span>
+        </span>
+        <Badge
+          variant="secondary"
+          className="hidden border-brand/25 bg-brand/10 font-normal text-brand sm:inline-flex"
+        >
           Go · Mux · MySQL
         </Badge>
 
