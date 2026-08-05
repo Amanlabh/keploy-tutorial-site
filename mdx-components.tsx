@@ -2,6 +2,7 @@ import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
 
 import { Callout } from "@/components/callout";
+import { CodeWindow } from "@/components/code-window";
 import { Hero } from "@/components/hero";
 import { Stats } from "@/components/stats";
 import { Badge } from "@/components/ui/badge";
@@ -78,23 +79,18 @@ const components: MDXComponents = {
       {...props}
     />
   ),
-  pre: ({ children, ...props }: El<"pre">) => (
-    <div className="group relative my-6">
-      {"data-language" in props && typeof props["data-language"] === "string" ? (
-        <Badge
-          variant="secondary"
-          className="absolute top-3 right-3 z-10 border-brand/25 bg-brand/10 font-mono text-[10px] tracking-wide text-brand uppercase"
-        >
-          {props["data-language"] as string}
-        </Badge>
-      ) : null}
-      <pre
-        className="overflow-x-auto rounded-lg border bg-muted/40 py-4 text-[13px] leading-relaxed [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[13px]"
-        {...props}
-      >
-        {children}
-      </pre>
-    </div>
+  // The window chrome lives on <figure>; <pre> is just the body.
+  figure: (props: El<"figure">) =>
+    "data-rehype-pretty-code-figure" in props ? (
+      <CodeWindow>{props.children}</CodeWindow>
+    ) : (
+      <figure {...props} />
+    ),
+  pre: (props: El<"pre">) => (
+    <pre
+      className="overflow-x-auto py-4 text-[13px] leading-relaxed [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[13px]"
+      {...props}
+    />
   ),
 
   // Markdown tables render through shadcn's Table primitives.

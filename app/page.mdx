@@ -29,7 +29,7 @@ eBPF is a Linux kernel feature. macOS doesn't have it. So Keploy doesn't run *on
 
 I used [Colima](https://github.com/abiosoft/colima), which gives you a Linux VM *and* the Docker daemon in one tool, so it covers both needs at once.
 
-```bash
+```bash title="install colima"
 brew install colima docker
 colima start --cpu 4 --memory 6 --disk 60
 ```
@@ -38,7 +38,7 @@ The defaults (2 CPU / 2 GB) get tight once MySQL and a Go build are running toge
 
 Confirm the VM can actually do eBPF — you need kernel ≥ 5.10 and a BTF blob:
 
-```bash
+```bash title="verify eBPF support"
 colima ssh -- uname -r
 colima ssh -- ls -la /sys/kernel/btf/vmlinux
 ```
@@ -62,7 +62,7 @@ Your Mac's `$HOME` is mounted into the VM over virtiofs, read-write, at the *sam
 
 The Colima image is a bare Ubuntu 24.04 — no Go, no toolchain.
 
-```bash
+```bash title="install Go in the VM"
 cd /tmp
 curl -sSL -O https://go.dev/dl/go1.24.5.linux-arm64.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.24.5.linux-arm64.tar.gz
@@ -71,7 +71,7 @@ echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/go.sh
 
 Keploy's documented installer:
 
-```bash
+```bash title="install Keploy"
 curl --silent -O -L https://keploy.io/install.sh && source install.sh
 ```
 
@@ -80,7 +80,7 @@ That script draws animated spinners and progress bars. Without a TTY — a CI jo
 
 If that's you, skip the script and take the binary directly. It's the same artifact the installer downloads:
 
-```bash
+```bash title="install Keploy manually"
 curl -sSL -o keploy.tar.gz \
   https://github.com/keploy/keploy/releases/latest/download/keploy_linux_arm64.tar.gz
 tar -xzf keploy.tar.gz && sudo mv keploy /usr/local/bin/ && sudo chmod +x /usr/local/bin/keploy
@@ -93,7 +93,7 @@ Note too that the sample's own `readme.md` still tells you to install from `raw.
 
 Verify:
 
-```bash
+```bash title="check the version"
 keploy --version
 ```
 
@@ -135,7 +135,7 @@ It's the one quickstart in the Go list that runs end to end on the free OSS bina
 
 ## Step 3: Get the sample
 
-```bash
+```bash title="get the sample"
 git clone https://github.com/keploy/samples-go.git
 cd samples-go/mux-mysql
 go mod download
@@ -155,14 +155,14 @@ Small enough to hold in your head, real enough that the mocks mean something.
 
 ## Step 4: Start MySQL
 
-```bash
+```bash title="start MySQL"
 docker run -p 3306:3306 --rm --name mysql \
   -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql:latest
 ```
 
 The docs suggest watching the logs and waiting a minute. A loop is more reliable — the container reports "running" well before MySQL accepts connections:
 
-```bash
+```bash title="wait until MySQL accepts connections"
 until docker exec mysql mysqladmin ping -uroot -pmy-secret-pw --silent; do sleep 2; done
 ```
 
@@ -177,7 +177,7 @@ Couldnt create store driver: bad connection
 
 ## Step 5: Build
 
-```bash
+```bash title="build the binary"
 export ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql"
 go build -o main .
 ```
@@ -190,7 +190,7 @@ Keploy wraps a **command**, not a language runtime. A compiled binary, `go run .
 
 ## Step 6: Record
 
-```bash
+```bash title="record"
 sudo -E env ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql" \
   PATH=$PATH keploy record -c "./main"
 ```
@@ -220,7 +220,7 @@ That last line rewards a second look. Mux actually bound to a **random high port
 
 Anything that speaks HTTP works — curl, Postman, your frontend, an existing integration suite. In a second shell (`colima ssh` again):
 
-```bash
+```bash title="generate traffic"
 # happy paths
 curl -s -X POST http://localhost:8080/create \
   -H "content-type: application/json" -d '{"link":"https://github.com"}'
@@ -268,7 +268,7 @@ Keploy captures exactly what you exercise and nothing more. The 404 and the vali
 
 ### What you get
 
-```bash
+```bash title="what got written"
 find keploy -type f
 ```
 
@@ -287,7 +287,7 @@ keploy/test-set-0/tests/get-links-by-id-2.yaml
 
 A test case is plain YAML — request in, expected response out:
 
-```yaml
+```yaml title="keploy/test-set-0/tests/post-create-1.yaml"
 kind: Http
 name: post-create-1
 spec:
@@ -316,7 +316,7 @@ Each file also carries a ready-made `curl:` block that reproduces the request by
 
 And `mocks.yaml`, which is the interesting half — MySQL captured at the **wire protocol** level:
 
-```yaml
+```yaml title="keploy/test-set-0/mocks.yaml"
 kind: MySQL
 name: mock-0
 spec:
@@ -345,7 +345,7 @@ Handshake, public-key exchange, encrypted password, then the queries and result 
 
 ## Step 7: Replay
 
-```bash
+```bash title="replay"
 sudo -E env ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql" \
   PATH=$PATH keploy test -c "./main" --delay 20
 ```
@@ -370,14 +370,14 @@ Seven for seven. Which proves nothing yet — MySQL was still running.
 
 Kill the database. Not pause it. Kill it.
 
-```bash
+```bash title="kill the database"
 docker stop mysql
 docker ps -q | wc -l      # 0
 ```
 
 Run the identical command:
 
-```bash
+```bash title="replay — with the database stopped"
 sudo -E env ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql" \
   PATH=$PATH keploy test -c "./main" --delay 20
 ```
@@ -519,7 +519,7 @@ Any config your app reads from env vars needs `-E`, and ideally an explicit `env
 
 ## Command reference
 
-```bash
+```bash title="full command reference"
 # environment (macOS only)
 colima start --cpu 4 --memory 6 --disk 60
 colima ssh

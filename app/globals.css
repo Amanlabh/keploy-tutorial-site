@@ -168,8 +168,3 @@ html {
 ::selection {
   background: color-mix(in oklch, var(--brand) 30%, transparent);
 }
-
-/* Keep the language badge from colliding with the first line of code. */
-figure[data-rehype-pretty-code-figure] pre {
-  padding-top: 1.5rem;
-}
