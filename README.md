@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Testing a Go API Without Writing Tests — a Keploy walkthrough
 
-## Getting Started
+A single-page documentation site built with **Next.js** and **MDX**, containing an original,
+beginner-focused tutorial on running the [Keploy](https://keploy.io) **Mux + MySQL** Go quickstart.
 
-First, run the development server:
+The tutorial is not a rewrite of Keploy's docs. It's a write-up of an actual run: every command,
+every log line, and every test summary on the page was produced on the machine described at the
+bottom of the article — including the things that went wrong and how they were fixed.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What the tutorial covers
+
+- Why Keploy needs a Linux VM on macOS, and how to get one with Colima
+- The OSS vs Community Edition split, and which Go quickstarts each one can actually run
+- `keploy record` — turning six `curl` calls into 7 test cases and 9 MySQL mocks
+- `keploy test` — replaying all 7 **with the MySQL container stopped**
+- Four deliberate regressions, to find what Keploy's diffing does and does not catch
+
+## Stack
+
+| | |
+|---|---|
+| Framework | Next.js 16 (App Router, Turbopack) |
+| Content | MDX via `@next/mdx` — the page *is* `app/page.mdx` |
+| UI | shadcn/ui (Base UI primitives) + Tailwind CSS v4 |
+| Syntax highlighting | `rehype-pretty-code` + Shiki, dual light/dark themes |
+| Theming | `next-themes`, class-based dark mode with a header toggle |
+| Fonts | Geist Sans / Geist Mono |
+
+## Structure
+
+```
+app/
+  page.mdx           the tutorial — all content lives here
+  layout.tsx         shell: header, sidebar TOC, theme provider, footer
+  globals.css        shadcn tokens + Shiki dual-theme wiring
+components/
+  callout.tsx        <Callout type="info|warn|success|danger"> used throughout the MDX
+  stats.tsx          headline figures at the top of the article
+  toc.tsx            table of contents, built from rendered headings at runtime
+  theme-toggle.tsx   light/dark switch
+  site-header.tsx    sticky header
+  ui/                shadcn components
+mdx-components.tsx   maps every markdown element to a styled component
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Markdown tables render through shadcn's `Table`; fenced code blocks get a language badge and
+horizontal scroll; the sidebar TOC reads the rendered `h2`s so the MDX stays the only source of
+truth for the outline.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Run locally
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+Then open http://localhost:3000.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build && npm start   # production build
+```

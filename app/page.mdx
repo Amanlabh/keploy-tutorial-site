@@ -1,0 +1,574 @@
+# Testing a Go API Without Writing Tests
+
+You have a Go service. It talks to MySQL. You know it needs tests, but writing them means writing mocks, and writing mocks means hand-transcribing every row your database returns into Go structs — then maintaining that transcription forever, as the schema moves under it.
+
+Keploy inverts the deal. It watches your app while you use it and turns that traffic into tests. Not only the HTTP requests — the database conversations too. Replay them later and your app believes it's still talking to MySQL, while MySQL isn't even running.
+
+This walks through the official **Mux + MySQL** quickstart, start to finish, on an Apple Silicon Mac. Every command below actually ran; every output is pasted from the terminal, not paraphrased.
+
+<Stats />
+
+---
+
+## What the two commands actually do
+
+- **`keploy record -c "<your app>"`** — starts your app as a child process and intercepts its network traffic in both directions. Inbound HTTP becomes **test cases**. Outbound calls (MySQL, Postgres, HTTP APIs) become **mocks**.
+- **`keploy test -c "<your app>"`** — starts your app again, replays the recorded requests at it, answers its database calls from the recorded mocks, and diffs the responses.
+
+The interception is eBPF-based. Keploy loads probes into the kernel and takes over DNS on port `26789`, so it observes your app's sockets without you importing anything. Your `main.go` is never touched.
+
+That's the pitch, and it's the part worth testing sceptically: **no test code, no mock code, no SDK import.**
+
+---
+
+## Step 0: If you're on a Mac, you need a Linux VM
+
+eBPF is a Linux kernel feature. macOS doesn't have it. So Keploy doesn't run *on* macOS — it runs inside a Linux VM.
+
+I used [Colima](https://github.com/abiosoft/colima), which gives you a Linux VM *and* the Docker daemon in one tool, so it covers both needs at once.
+
+```bash
+brew install colima docker
+colima start --cpu 4 --memory 6 --disk 60
+```
+
+The defaults (2 CPU / 2 GB) get tight once MySQL and a Go build are running together, hence the bump.
+
+Confirm the VM can actually do eBPF — you need kernel ≥ 5.10 and a BTF blob:
+
+```bash
+colima ssh -- uname -r
+colima ssh -- ls -la /sys/kernel/btf/vmlinux
+```
+
+```text
+6.8.0-117-generic
+-r--r--r-- 1 root root 6968159 Aug  5 18:14 /sys/kernel/btf/vmlinux
+```
+
+Kernel 6.8, BTF present. Good to go.
+
+<Callout type="info" title="Colima mounts your home directory">
+Your Mac's `$HOME` is mounted into the VM over virtiofs, read-write, at the *same path*. `/Users/you/code` is `/Users/you/code` inside the VM. Edit in your normal macOS editor, run in Linux, no syncing step. `colima ssh` even preserves your working directory.
+</Callout>
+
+**From here on, every command runs inside the VM.** Get a shell with `colima ssh`. If you find yourself typing `keploy` on macOS and getting `env: keploy: No such file or directory`, that's this step biting you.
+
+---
+
+## Step 1: Install Go and Keploy in the VM
+
+The Colima image is a bare Ubuntu 24.04 — no Go, no toolchain.
+
+```bash
+cd /tmp
+curl -sSL -O https://go.dev/dl/go1.24.5.linux-arm64.tar.gz
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.24.5.linux-arm64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/go.sh
+```
+
+Keploy's documented installer:
+
+```bash
+curl --silent -O -L https://keploy.io/install.sh && source install.sh
+```
+
+<Callout type="warn" title="Gotcha #1 — the installer needs a real terminal">
+That script draws animated spinners and progress bars. Without a TTY — a CI job, a provisioning script, an agent shell — it hangs forever and prints nothing at all. I sat on a silent prompt for seven minutes before working out why.
+
+If that's you, skip the script and take the binary directly. It's the same artifact the installer downloads:
+
+```bash
+curl -sSL -o keploy.tar.gz \
+  https://github.com/keploy/keploy/releases/latest/download/keploy_linux_arm64.tar.gz
+tar -xzf keploy.tar.gz && sudo mv keploy /usr/local/bin/ && sudo chmod +x /usr/local/bin/keploy
+```
+
+Swap `arm64` → `amd64` on Intel.
+</Callout>
+
+Note too that the sample's own `readme.md` still tells you to install from `raw.githubusercontent.com/keploy/keploy/main/keploy.sh`. That path is stale — use `https://keploy.io/install.sh` from the main docs.
+
+Verify:
+
+```bash
+keploy --version
+```
+
+```text
+Keploy 3.6.8
+```
+
+---
+
+## Step 2: Know which Keploy you just installed
+
+This one cost me the most time, so it gets its own section.
+
+Keploy ships **two** binaries, and the difference is not cosmetic:
+
+| | OSS (`keploy.io/install.sh`) | Community Edition (`keploy.io/ent/install.sh`) |
+|---|---|---|
+| Account required | No | **Yes** — browser OAuth or API key |
+| Protocols mocked | HTTP, **MySQL** | HTTP, MySQL, **PostgreSQL**, MongoDB, gRPC, HTTP/2, Kafka |
+| Price | Free | Free |
+
+Of the five Go quickstarts, **four use Postgres, Redis or similar** — those need Community Edition. The OSS binary prints a friendly banner about this and it is easy to skim past. Recording *appears* to start either way; the protocol support simply isn't in the OSS build.
+
+And Community Edition won't run headless — it blocks on a browser handshake:
+
+```text
+Opening browser for authentication...
+https://app.keploy.io/signin/integration/auth?method=code&code=...
+Waiting for authentication...
+```
+
+Fine on a laptop, impossible over SSH.
+
+<Callout type="info" title="Why this tutorial uses Mux + MySQL">
+It's the one quickstart in the Go list that runs end to end on the free OSS binary with no account, no login, no API key. If you want Postgres or Mongo, install Community Edition and run `keploy login` first.
+</Callout>
+
+---
+
+## Step 3: Get the sample
+
+```bash
+git clone https://github.com/keploy/samples-go.git
+cd samples-go/mux-mysql
+go mod download
+```
+
+A URL shortener in about 200 lines. `gorilla/mux` for routing, `database/sql` with `go-sql-driver/mysql` for storage. Three routes:
+
+| Route | Does |
+|---|---|
+| `POST /create` | Takes `{"link": "https://..."}`, stores it, returns a short URL |
+| `GET /all` | Lists every stored link |
+| `GET /links/{id}` | 307 redirect to the original URL |
+
+Small enough to hold in your head, real enough that the mocks mean something.
+
+---
+
+## Step 4: Start MySQL
+
+```bash
+docker run -p 3306:3306 --rm --name mysql \
+  -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql:latest
+```
+
+The docs suggest watching the logs and waiting a minute. A loop is more reliable — the container reports "running" well before MySQL accepts connections:
+
+```bash
+until docker exec mysql mysqladmin ping -uroot -pmy-secret-pw --silent; do sleep 2; done
+```
+
+Start the app too early and you get the error the README warns about, which looks alarming and means nothing worse than "not ready yet":
+
+```text
+[mysql] packets.go:37: unexpected EOF
+Couldnt create store driver: bad connection
+```
+
+---
+
+## Step 5: Build
+
+```bash
+export ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql"
+go build -o main .
+```
+
+The app reads its DSN from `ConnectionString` and exits immediately if it's unset. Remember this — it comes back in the next step.
+
+Keploy wraps a **command**, not a language runtime. A compiled binary, `go run .`, `docker compose up` — all valid. A binary is the least ambiguous, so build one.
+
+---
+
+## Step 6: Record
+
+```bash
+sudo -E env ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql" \
+  PATH=$PATH keploy record -c "./main"
+```
+
+Every piece of that line earns its place:
+
+- **`sudo`** — loading eBPF programs and rebinding DNS are privileged operations.
+- **`-E`** — preserves your environment through `sudo`. Drop it and `ConnectionString` vanishes, and the app exits with `Connection string empty` before Keploy records a thing.
+- **`env ConnectionString=...`** — belt and braces. `sudo -E` policy varies between systems; passing the variable explicitly always works.
+- **`-c`** — the command Keploy should run and watch.
+
+Keploy boots, then hands off to your app:
+
+```text
+🐰 Keploy: INFO  starting TCP DNS server at addr :26789
+🐰 Keploy: INFO  Proxy started at port:16789
+🐰 Keploy: INFO  Keploy agent is ready to record test cases and mocks.
+🐰 Keploy: INFO  Starting Application : {"executing_cmd": "/usr/bin/sh -c ./main"}
+2026/08/06 01:25:35 *** DB Initiated at ***
+2026/08/06 01:25:35 Server is running on port:8080
+🐰 Keploy: INFO  Started ingress forwarding {"orig_port": 8080, "new_port": 44641}
+```
+
+That last line rewards a second look. Mux actually bound to a **random high port** (44641), and Keploy took `8080` for itself. Requests to `:8080` hit Keploy first, get recorded, and are forwarded on. Neither the client nor the app can tell. Keploy inserted itself into the middle of the conversation without either party noticing.
+
+### Generate traffic
+
+Anything that speaks HTTP works — curl, Postman, your frontend, an existing integration suite. In a second shell (`colima ssh` again):
+
+```bash
+# happy paths
+curl -s -X POST http://localhost:8080/create \
+  -H "content-type: application/json" -d '{"link":"https://github.com"}'
+curl -s -X POST http://localhost:8080/create \
+  -H "content-type: application/json" -d '{"link":"https://keploy.io"}'
+curl -s http://localhost:8080/all
+curl -s -i http://localhost:8080/links/1
+
+# error paths — these are tests too, and they're the ones people forget
+curl -s http://localhost:8080/links/999
+curl -s -X POST http://localhost:8080/create \
+  -H "content-type: application/json" -d '{"link":"not-a-url"}'
+```
+
+Real responses:
+
+```json
+{"message":"Converted","link":"http://localhost:8080/links/1","status":true}
+{"message":"Converted","link":"http://localhost:8080/links/2","status":true}
+{"message":[{"id":"1","website":"https://github.com"},{"id":"2","website":"https://keploy.io"}],"status":true}
+```
+
+```http
+HTTP/1.1 307 Temporary Redirect
+Location: https://github.com
+```
+
+```json
+{"message":"Website not found","link":"","status":false}
+{"message":"Enter Valid url (starting with 'http:// or https://')","link":"","status":false}
+```
+
+Each one is captured the instant it lands:
+
+```text
+🐰 Keploy: INFO  🟠 Keploy has captured test cases for the user's application.
+                 {"testcase name": "post-create-1"}
+```
+
+Stop with `Ctrl+C` when you're done. Keploy shuts down cleanly and flushes to disk.
+
+<Callout type="success" title="Spend your curls on the ugly paths">
+Keploy captures exactly what you exercise and nothing more. The 404 and the validation rejection above cost one command each — and they're precisely the branches a hand-written suite tends to skip.
+</Callout>
+
+### What you get
+
+```bash
+find keploy -type f
+```
+
+```text
+keploy/test-set-0/mocks.yaml
+keploy/test-set-0/tests/post-create-1.yaml
+keploy/test-set-0/tests/post-create-2.yaml
+keploy/test-set-0/tests/post-create-3.yaml
+keploy/test-set-0/tests/get-all-1.yaml
+keploy/test-set-0/tests/get-all-2.yaml
+keploy/test-set-0/tests/get-links-by-id-1.yaml
+keploy/test-set-0/tests/get-links-by-id-2.yaml
+```
+
+**Seven test cases and nine MySQL mocks**, from six curl commands and a readiness check.
+
+A test case is plain YAML — request in, expected response out:
+
+```yaml
+kind: Http
+name: post-create-1
+spec:
+  req:
+    method: POST
+    url: http://localhost:8080/create
+    header:
+      Content-Type: application/json
+    body: '{"link":"https://github.com"}'
+  resp:
+    status_code: 200
+    header:
+      Content-Length: "77"
+      Content-Type: text/plain; charset=utf-8
+      Date: Wed, 05 Aug 2026 19:55:52 GMT
+    body: |
+      {"message":"Converted","link":"http://localhost:8080/links/1","status":true}
+  assertions:
+    noise:
+      header.Date: []
+```
+
+That `noise` block is Keploy working out on its own that `Date` can't be compared across runs. Add your own entries for anything else nondeterministic — request IDs, timestamps in the body, UUIDs.
+
+Each file also carries a ready-made `curl:` block that reproduces the request by hand. Useful when a test fails and you want to poke at it directly.
+
+And `mocks.yaml`, which is the interesting half — MySQL captured at the **wire protocol** level:
+
+```yaml
+kind: MySQL
+name: mock-0
+spec:
+    metadata:
+        destAddr: 127.0.0.1:3306
+        requestOperation: HandshakeV10
+        responseOperation: OK
+    requests:
+        - header:
+            packet_type: HandshakeResponse41
+          message:
+            username: root
+            database: mysql
+            auth_plugin_name: caching_sha2_password
+        - header:
+            packet_type: RequestPublicKey
+          message: request_public_key
+        - header:
+            packet_type: encrypted_password
+          message: Ua3ZqcGrY8kYq3i9b+yFVWb5U9mJeN+r0x0tOEOshPZZbOWTMO59zC18...
+```
+
+Handshake, public-key exchange, encrypted password, then the queries and result sets. Nobody was ever going to write that by hand. That's the entire point.
+
+---
+
+## Step 7: Replay
+
+```bash
+sudo -E env ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql" \
+  PATH=$PATH keploy test -c "./main" --delay 20
+```
+
+`--delay` is how long Keploy waits for your app to start listening before it fires the first request. Twenty seconds is generous; tune it down once you know your boot time.
+
+```text
+ <=========================================>
+  COMPLETE TESTRUN SUMMARY.
+	Total tests: 7
+	Total test passed: 7
+	Total test failed: 0
+	Total time taken: 20.18 s
+<=========================================>
+```
+
+Seven for seven. Which proves nothing yet — MySQL was still running.
+
+---
+
+## Step 8: The part that makes it click
+
+Kill the database. Not pause it. Kill it.
+
+```bash
+docker stop mysql
+docker ps -q | wc -l      # 0
+```
+
+Run the identical command:
+
+```bash
+sudo -E env ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql" \
+  PATH=$PATH keploy test -c "./main" --delay 20
+```
+
+```text
+	Total tests: 7
+	Total test passed: 7
+	Total test failed: 0
+	Total time taken: 20.11 s
+```
+
+<Callout type="success" title="Seven out of seven, with zero containers running">
+The app opened a MySQL connection, negotiated a handshake, exchanged a public key, authenticated, ran `INSERT`s and `SELECT`s and read result sets back — every byte of it answered by Keploy from `mocks.yaml`. `database/sql` never suspected a thing.
+</Callout>
+
+No testcontainers, no fixtures, no seed scripts, no `TestMain` spinning up Docker.
+
+Here's the part worth internalising: those mocks are a **recording of a real conversation**, not an approximation someone typed out from memory. Hand-written mocks start drifting from reality the moment the schema changes, and they drift silently. These *were* reality at the moment of recording.
+
+---
+
+## Step 9: But does it actually catch regressions?
+
+A suite that only ever goes green is decoration. I broke the app four ways to find the edges.
+
+### 1 — Change a JSON response body
+
+```diff
+- helpers.SendResponse(w, http.StatusOK, "Converted", link, true)
++ helpers.SendResponse(w, http.StatusOK, "Shortened", link, true)
+```
+
+```text
+┌───────────────────────────────────────────────────────────────────────┐
+│                            POST - CREATE - 1                          │
+├───────────────────────────────────────────────────────────────────────┤
+│           EXPECT BODY            │            ACTUAL BODY             │
+│ ─────────────────────────────────┼─────────────────────────────────── │
+│  {                               │ {                                  │
+│   "message": "Converted" ,       │  "message": "Shortened" ,          │
+│  status:true                     │ status:true                        │
+│   }                              │  }                                 │
+└───────────────────────────────────────────────────────────────────────┘
+	Total tests: 7   passed: 5   failed: 2
+```
+
+**Caught**, with a field-level diff pointing at the exact key.
+
+### 2 — Change the status code
+
+```diff
+- helpers.SendResponse(w, http.StatusOK, "Converted", link, true)
++ helpers.SendResponse(w, http.StatusAccepted, "Converted", link, true)
+```
+
+```text
+│           EXPECT STATUS          │           ACTUAL STATUS            │
+	Total tests: 7   passed: 5   failed: 2
+```
+
+**Caught.**
+
+### 3 — Add one response header
+
+Body identical, status identical:
+
+```diff
+  func SendResponse(w http.ResponseWriter, code int, message string, link string, status bool) {
++ 	w.Header().Set("X-Powered-By", "keploy")
+```
+
+```text
+│          EXPECT HEADER           │           ACTUAL HEADER            │
+│        X-Powered-By: []          │       X-Powered-By: [keploy]       │
+	Total tests: 7   passed: 3   failed: 4
+```
+
+**Caught**, across every route that returns through that helper.
+
+### 4 — Change a non-JSON body, and nothing else
+
+This is where it gets interesting. The `/links/{id}` redirect returns an HTML body. I replaced it wholesale while pinning the status code and every header — including `Content-Type` — to their recorded values:
+
+```diff
+- http.Redirect(w, r, link, http.StatusTemporaryRedirect)
++ w.Header().Set("Location", link)
++ w.Header().Set("Content-Type", "text/html; charset=utf-8")
++ w.WriteHeader(http.StatusTemporaryRedirect)
++ _, _ = w.Write([]byte("TAMPERED BODY, same header, same status.\n"))
+```
+
+Recorded body: `<a href="https://github.com">Temporary Redirect</a>.`
+Actual body: `TAMPERED BODY, same header, same status.`
+
+```text
+	Total tests: 7
+	Total test passed: 7
+	Total test failed: 0
+```
+
+**Not caught.**
+
+<Callout type="warn" title="Be precise about what's happening here">
+My first attempt at this experiment misled me. Before pinning `Content-Type`, the test *did* fail — but the diff named only the header:
+
+```text
+│  Content-Type: [text/html; charset=utf-8]  │  Content-Type: [text/plain; charset=utf-8]  │
+```
+
+The mangled body was never mentioned. Once the header matched, the test went green with a completely different body. So it isn't that plain-text responses are ignored wholesale — **Keploy 3.6.8 diffs bodies structurally as JSON, and a body that isn't JSON isn't compared at all.**
+</Callout>
+
+| Change | Detected |
+|---|---|
+| JSON response body | ✅ |
+| Status code | ✅ |
+| Response header | ✅ |
+| Non-JSON response body | ❌ |
+
+Not a dealbreaker — JSON APIs are the ninety-percent case, and that's exactly where the diffing is sharp. But don't read a green run as "nothing moved" if you serve HTML, plain text, or CSV. Assert those separately.
+
+---
+
+## Gotchas worth knowing before you start
+
+<Callout type="warn" title="Set TZ=UTC if your app handles dates">
+On a different sample I hit this hard: the VM's timezone was `Asia/Kolkata` (+05:30), the app converted a `9999-12-31T23:59:59Z` sentinel to local time, landed in **year 10000**, and MySQL rejected the write. Two endpoints returned garbage. Prefix both commands with `env TZ=UTC` and it disappears.
+</Callout>
+
+<Callout type="danger" title="Check your responses before you stop recording">
+Keploy records what your app *does*, and has no opinion about whether that's correct. Record a bug and you've just promoted it to the spec — your suite now defends it. Read the curl output as it scrolls past.
+</Callout>
+
+<Callout type="warn" title="sudo breaks your environment">
+Any config your app reads from env vars needs `-E`, and ideally an explicit `env VAR=...` as well. This bites on the very first run, before Keploy has recorded anything, and the error message points at your app rather than at `sudo`.
+</Callout>
+
+---
+
+## Command reference
+
+```bash
+# environment (macOS only)
+colima start --cpu 4 --memory 6 --disk 60
+colima ssh
+
+# database
+docker run -p 3306:3306 --rm --name mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql:latest
+until docker exec mysql mysqladmin ping -uroot -pmy-secret-pw --silent; do sleep 2; done
+
+# app
+git clone https://github.com/keploy/samples-go.git && cd samples-go/mux-mysql
+go mod download
+export ConnectionString="root:my-secret-pw@tcp(localhost:3306)/mysql"
+go build -o main .
+
+# record
+sudo -E env ConnectionString="$ConnectionString" PATH=$PATH keploy record -c "./main"
+#   ...send traffic in another shell, then Ctrl+C
+
+# replay
+sudo -E env ConnectionString="$ConnectionString" PATH=$PATH keploy test -c "./main" --delay 20
+
+# prove the mocks are real
+docker stop mysql
+sudo -E env ConnectionString="$ConnectionString" PATH=$PATH keploy test -c "./main" --delay 20
+```
+
+---
+
+## What I'd tell a teammate
+
+The pitch holds up. Six curl commands became seven regression tests and nine MySQL mocks in about a minute, with zero lines of test code and zero changes to `main.go`. The suite then ran green against a database that did not exist. For an existing service sitting at no coverage, that is a genuinely different starting position from an empty `_test.go` file.
+
+The friction is all in the first twenty minutes, and all of it is environmental:
+
+1. **On a Mac you need a Linux VM.** eBPF isn't optional and it doesn't port.
+2. **Check which binary you have.** OSS covers HTTP and MySQL. Postgres, Mongo and gRPC are Community Edition — free, but it needs an account and won't run headless.
+3. **`sudo -E`, and pass your env vars explicitly.** The first failure you hit will look like an app bug and won't be.
+4. **Verify responses before you stop recording.** Keploy captures behaviour, not correctness.
+5. **Non-JSON bodies aren't diffed.** Know it before you trust a green run on an HTML endpoint.
+
+None of that is in the quickstart, and every one of them is a one-line fix once you know. Past that point the loop really is as short as advertised: use your app, get tests.
+
+---
+
+### Environment this was run on
+
+| | |
+|---|---|
+| Host | macOS (Darwin 24.1.0), Apple Silicon (arm64) |
+| VM | Colima 0.10.3 → Ubuntu 24.04.4 LTS, kernel 6.8.0 |
+| Keploy | 3.6.8 (OSS) |
+| Go | 1.24.5 |
+| MySQL | `mysql:latest` |
+| Sample | [`keploy/samples-go`](https://github.com/keploy/samples-go) → [`mux-mysql`](https://keploy.io/docs/quickstart/samples-mysql/) |
