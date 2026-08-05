@@ -140,25 +140,17 @@
     @apply font-sans;
   }
 }
-/* rehype-pretty-code emits both themes as CSS vars; pick one per color scheme. */
-.shiki,
-.shiki span {
+/* rehype-pretty-code emits both themes as CSS vars on token spans. */
+code[data-theme] span {
   color: var(--shiki-light);
 }
-.dark .shiki,
-.dark .shiki span {
+.dark code[data-theme] span {
   color: var(--shiki-dark);
 }
 
-/* Full-width lines so padding and future line highlighting behave. */
-.shiki .line {
-  display: inline-block;
-  width: 100%;
+/* Lines are grid rows; pad them (not the <pre>) so padding survives scroll. */
+code[data-theme] > [data-line] {
   padding-inline: 1.25rem;
-}
-
-figure[data-rehype-pretty-code-figure] {
-  margin: 0;
 }
 
 html {

@@ -28,7 +28,8 @@ export function CodeWindow({ children }: { children?: ReactNode }) {
   const caption = nodes.find(
     (n) => (n.props as AnyProps)["data-rehype-pretty-code-title"] !== undefined,
   );
-  const pre = nodes.find((n) => (n.props as AnyProps)["data-language"] !== undefined);
+  // The figcaption carries data-language too, so identify the body by exclusion.
+  const pre = nodes.find((n) => n !== caption);
 
   // Without an explicit title, name the block by what it is rather than by
   // its highlighter grammar — "output" reads better than "text".

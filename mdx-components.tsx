@@ -72,13 +72,16 @@ const components: MDXComponents = {
   ),
   hr: () => <Separator className="my-12" />,
 
-  // Inline code. Fenced blocks arrive already wrapped in <pre> by rehype-pretty-code.
-  code: (props: El<"code">) => (
-    <code
-      className="rounded-md border border-brand/20 bg-brand/[0.07] px-[0.4em] py-[0.2em] font-mono text-[0.85em] break-words text-foreground"
-      {...props}
-    />
-  ),
+  // Block code (inside <pre>) carries data-language; only inline code gets chrome.
+  code: (props: El<"code">) =>
+    "data-language" in props ? (
+      <code {...props} />
+    ) : (
+      <code
+        className="rounded-md border border-brand/20 bg-brand/[0.07] px-[0.4em] py-[0.2em] font-mono text-[0.85em] break-words text-foreground"
+        {...props}
+      />
+    ),
   // The window chrome lives on <figure>; <pre> is just the body.
   figure: (props: El<"figure">) =>
     "data-rehype-pretty-code-figure" in props ? (
@@ -88,7 +91,7 @@ const components: MDXComponents = {
     ),
   pre: (props: El<"pre">) => (
     <pre
-      className="overflow-x-auto py-4 text-[13px] leading-relaxed [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[13px]"
+      className="overflow-x-auto py-4 text-[13px] leading-relaxed"
       {...props}
     />
   ),
