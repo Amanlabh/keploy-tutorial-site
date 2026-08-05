@@ -46,12 +46,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </aside>
           </div>
 
-          <footer className="border-t py-8">
-            <div className="mx-auto max-w-6xl px-4 text-sm text-muted-foreground sm:px-6">
-              Built with Next.js and MDX. Every command and output on this page was
-              run on the machine described at the bottom of the article.
-            </div>
-          </footer>
         </ThemeProvider>
       </body>
     </html>

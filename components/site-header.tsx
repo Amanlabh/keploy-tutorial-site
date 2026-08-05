@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react";
 
+import { KeployLogo } from "@/components/keploy-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,15 +10,9 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <span
-          aria-hidden
-          className="grid size-6 shrink-0 place-items-center rounded-md bg-brand font-mono text-sm font-bold text-primary-foreground"
-        >
-          K
-        </span>
-        <span className="font-mono text-sm font-semibold tracking-tight">
-          keploy
-          <span className="text-muted-foreground"> record → test</span>
+        <KeployLogo className="h-6 w-auto shrink-0" />
+        <span className="hidden font-mono text-sm text-muted-foreground sm:inline">
+          record → test
         </span>
         <Badge
           variant="secondary"
