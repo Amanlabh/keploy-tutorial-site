@@ -7,9 +7,18 @@ The tutorial is not a rewrite of Keploy's docs. It's a write-up of an actual run
 every log line, and every test summary on the page was produced on the machine described at the
 bottom of the article — including the things that went wrong and how they were fixed.
 
+## The Keploy CLI
+
+![Keploy Community Edition running on macOS](docs/keploy-cli-macos.png)
+
+The CLI installs and runs natively on macOS — `keploy --version`, `keploy login` and
+`keploy status` all work there. What *doesn't* work natively is `record` and `test`:
+the traffic interception is eBPF-based, so it needs a Linux kernel underneath. That's
+the reason the walkthrough runs inside a Colima VM.
+
 ## What the tutorial covers
 
-- Why Keploy needs a Linux VM on macOS, and how to get one with Colima
+- Why `record` and `test` need a Linux kernel, and how to get one with Colima
 - The OSS vs Community Edition split, and which Go quickstarts each one can actually run
 - `keploy record` — turning six `curl` calls into 7 test cases and 9 MySQL mocks
 - `keploy test` — replaying all 7 **with the MySQL container stopped**
