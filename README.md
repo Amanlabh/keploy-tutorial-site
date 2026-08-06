@@ -1,4 +1,4 @@
-# Testing a Go API Without Writing Tests — a Keploy walkthrough
+# Testing a Go API Without Writing Tests - a Keploy walkthrough
 
 A single-page documentation site built with **Next.js** and **MDX**, containing an original,
 beginner-focused tutorial on running the [Keploy](https://keploy.io) **Mux + MySQL** Go quickstart.
